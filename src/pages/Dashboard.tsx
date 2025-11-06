@@ -1,30 +1,76 @@
 import { useState } from "react";
-import { Search, Trophy, Target, Flame } from "lucide-react";
+import { Search, Trophy, Target, Flame, Loader2 } from "lucide-react";
 import { CyberButton } from "@/components/ui/cyber-button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import StatsCard from "@/components/dashboard/StatsCard";
 import DifficultyChart from "@/components/dashboard/DifficultyChart";
 import RecommendationsCard from "@/components/dashboard/RecommendationsCard";
 
+interface UserStats {
+  username: string;
+  realName?: string;
+  ranking: number;
+  totalSolved: number;
+  easySolved: number;
+  mediumSolved: number;
+  hardSolved: number;
+}
+
 const Dashboard = () => {
   const [username, setUsername] = useState("");
   const [searchedUser, setSearchedUser] = useState("");
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleSearch = () => {
-    if (username.trim()) {
-      setSearchedUser(username);
-      // In a real app, this would trigger an API call
+  const handleSearch = async () => {
+    if (!username.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a LeetCode username",
+        variant: "destructive",
+      });
+      return;
     }
-  };
 
-  // Mock data for demonstration
-  const mockStats = {
-    totalSolved: 487,
-    easySolved: 234,
-    mediumSolved: 189,
-    hardSolved: 64,
-    contestRating: 1842,
-    ranking: 15234,
+    setIsLoading(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-leetcode-data', {
+        body: { username: username.trim() }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        toast({
+          title: "Error",
+          description: data.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setUserStats(data);
+      setSearchedUser(username.trim());
+      
+      toast({
+        title: "Success!",
+        description: `Loaded stats for ${data.username}`,
+      });
+
+    } catch (error) {
+      console.error('Error fetching LeetCode data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch LeetCode data. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,14 +92,28 @@ const Dashboard = () => {
                 className="bg-input border-primary/30 focus:border-primary h-12 text-lg"
               />
             </div>
-            <CyberButton variant="cyber" size="lg" onClick={handleSearch}>
-              <Search className="w-5 h-5 mr-2" />
-              Analyze
+            <CyberButton 
+              variant="cyber" 
+              size="lg" 
+              onClick={handleSearch}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Search className="w-5 h-5 mr-2" />
+                  Analyze
+                </>
+              )}
             </CyberButton>
           </div>
         </div>
 
-        {searchedUser && (
+        {searchedUser && userStats && (
           <>
             {/* Profile Header */}
             <div className="glass-card p-6 mb-8 neon-border animate-slide-up">
@@ -62,8 +122,11 @@ const Dashboard = () => {
                   {searchedUser.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h2 className="text-2xl font-orbitron font-bold">{searchedUser}</h2>
-                  <p className="text-muted-foreground">Rank: #{mockStats.ranking.toLocaleString()}</p>
+                  <h2 className="text-2xl font-orbitron font-bold">{userStats.username}</h2>
+                  {userStats.realName && (
+                    <p className="text-muted-foreground">{userStats.realName}</p>
+                  )}
+                  <p className="text-muted-foreground">Rank: #{userStats.ranking.toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -72,27 +135,25 @@ const Dashboard = () => {
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <StatsCard
                 title="Total Solved"
-                value={mockStats.totalSolved}
+                value={userStats.totalSolved}
                 icon={Target}
-                trend="+12 this week"
                 color="primary"
               />
               <StatsCard
-                title="Contest Rating"
-                value={mockStats.contestRating}
-                icon={Trophy}
-                trend="Top 15%"
-                color="secondary"
-              />
-              <StatsCard
                 title="Easy Problems"
-                value={mockStats.easySolved}
+                value={userStats.easySolved}
                 icon={Flame}
                 color="chart-easy"
               />
               <StatsCard
+                title="Medium Problems"
+                value={userStats.mediumSolved}
+                icon={Flame}
+                color="chart-medium"
+              />
+              <StatsCard
                 title="Hard Problems"
-                value={mockStats.hardSolved}
+                value={userStats.hardSolved}
                 icon={Flame}
                 color="chart-hard"
               />
@@ -101,11 +162,11 @@ const Dashboard = () => {
             {/* Charts and Recommendations */}
             <div className="grid lg:grid-cols-2 gap-8">
               <DifficultyChart
-                easy={mockStats.easySolved}
-                medium={mockStats.mediumSolved}
-                hard={mockStats.hardSolved}
+                easy={userStats.easySolved}
+                medium={userStats.mediumSolved}
+                hard={userStats.hardSolved}
               />
-              <RecommendationsCard username={searchedUser} />
+              <RecommendationsCard userStats={userStats} />
             </div>
           </>
         )}

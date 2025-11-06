@@ -12,6 +12,7 @@ const StatsCard = ({ title, value, icon: Icon, trend, color = "primary" }: Stats
   const colorClass = color === "primary" ? "text-primary" : 
                      color === "secondary" ? "text-secondary" :
                      color === "chart-easy" ? "text-chart-easy" :
+                     color === "chart-medium" ? "text-chart-medium" :
                      color === "chart-hard" ? "text-chart-hard" :
                      "text-primary";
 

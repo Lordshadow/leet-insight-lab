@@ -1,0 +1,7 @@
+project_id = "dgahoievcodqfkyxhngr"
+
+[functions.fetch-leetcode-data]
+verify_jwt = false
+
+[functions.get-ai-recommendations]
+verify_jwt = false

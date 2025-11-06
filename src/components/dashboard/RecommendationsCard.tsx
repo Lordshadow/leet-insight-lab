@@ -1,36 +1,71 @@
-import { Brain, ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Brain, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { CyberButton } from "@/components/ui/cyber-button";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
-interface RecommendationsCardProps {
-  username: string;
+interface Recommendation {
+  title: string;
+  difficulty: string;
+  tags: string[];
+  reason: string;
+  url: string;
 }
 
-const RecommendationsCard = ({ username }: RecommendationsCardProps) => {
-  // Mock recommendations - in real app, this would come from AI
-  const recommendations = [
-    {
-      title: "Two Sum II",
-      difficulty: "Medium",
-      tags: ["Array", "Two Pointers"],
-      reason: "Strengthen your two-pointer technique",
-      url: "https://leetcode.com/problems/two-sum-ii"
-    },
-    {
-      title: "Longest Palindromic Substring",
-      difficulty: "Medium",
-      tags: ["String", "Dynamic Programming"],
-      reason: "Practice DP patterns",
-      url: "https://leetcode.com/problems/longest-palindromic-substring"
-    },
-    {
-      title: "Binary Tree Maximum Path Sum",
-      difficulty: "Hard",
-      tags: ["Tree", "DFS"],
-      reason: "Challenge your tree traversal skills",
-      url: "https://leetcode.com/problems/binary-tree-maximum-path-sum"
-    },
-  ];
+interface UserStats {
+  username: string;
+  totalSolved: number;
+  easySolved: number;
+  mediumSolved: number;
+  hardSolved: number;
+}
+
+interface RecommendationsCardProps {
+  userStats: UserStats;
+}
+
+const RecommendationsCard = ({ userStats }: RecommendationsCardProps) => {
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const fetchRecommendations = async () => {
+    setIsLoading(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('get-ai-recommendations', {
+        body: userStats
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        toast({
+          title: "Error",
+          description: data.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setRecommendations(data.recommendations);
+      
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch AI recommendations. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecommendations();
+  }, [userStats.username]);
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -51,11 +86,18 @@ const RecommendationsCard = ({ username }: RecommendationsCardProps) => {
       </div>
 
       <p className="text-sm text-muted-foreground mb-6">
-        Personalized problem suggestions based on {username}'s profile
+        AI-powered problem suggestions based on {userStats.username}'s performance
       </p>
 
-      <div className="space-y-4">
-        {recommendations.map((rec, index) => (
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+          <p className="text-sm text-muted-foreground">Analyzing your profile...</p>
+        </div>
+      ) : recommendations.length > 0 ? (
+        <>
+          <div className="space-y-4">
+            {recommendations.map((rec, index) => (
           <div 
             key={index}
             className="p-4 rounded-lg bg-background/50 border border-primary/20 hover:border-primary/50 transition-all duration-300 group"
@@ -87,12 +129,31 @@ const RecommendationsCard = ({ username }: RecommendationsCardProps) => {
             </CyberButton>
           </div>
         ))}
-      </div>
+          </div>
 
-      <CyberButton variant="outline" className="w-full mt-6">
-        <Brain className="w-4 h-4 mr-2" />
-        Get More Recommendations
-      </CyberButton>
+          <CyberButton 
+            variant="outline" 
+            className="w-full mt-6"
+            onClick={fetchRecommendations}
+            disabled={isLoading}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh Recommendations
+          </CyberButton>
+        </>
+      ) : (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground mb-4">No recommendations yet</p>
+          <CyberButton 
+            variant="cyber" 
+            onClick={fetchRecommendations}
+            disabled={isLoading}
+          >
+            <Brain className="w-4 h-4 mr-2" />
+            Generate Recommendations
+          </CyberButton>
+        </div>
+      )}
     </div>
   );
 };
