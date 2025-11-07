@@ -1,21 +1,34 @@
-import { useState } from "react";
-import { Search, Trophy, Target, Flame, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Target, Flame, Loader2 } from "lucide-react";
 import { CyberButton } from "@/components/ui/cyber-button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useSearchParams } from "react-router-dom";
 import StatsCard from "@/components/dashboard/StatsCard";
 import DifficultyChart from "@/components/dashboard/DifficultyChart";
 import RecommendationsCard from "@/components/dashboard/RecommendationsCard";
+import ProfileHeader from "@/components/dashboard/ProfileHeader";
+import RecentSubmissions from "@/components/dashboard/RecentSubmissions";
+import ActivityCalendar from "@/components/dashboard/ActivityCalendar";
+import ContestRating from "@/components/dashboard/ContestRating";
+import SkillsRadar from "@/components/dashboard/SkillsRadar";
 
 interface UserStats {
   username: string;
   realName?: string;
   ranking: number;
+  avatar?: string;
+  reputation?: number;
+  starRating?: number;
   totalSolved: number;
   easySolved: number;
   mediumSolved: number;
   hardSolved: number;
+  calendar?: any;
+  contestRanking?: any;
+  skills?: any;
+  recentSubmissions?: any[];
 }
 
 const Dashboard = () => {
@@ -24,9 +37,19 @@ const Dashboard = () => {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
 
-  const handleSearch = async () => {
-    if (!username.trim()) {
+  useEffect(() => {
+    const usernameParam = searchParams.get('username');
+    if (usernameParam) {
+      setUsername(usernameParam);
+      handleSearch(usernameParam);
+    }
+  }, [searchParams]);
+
+  const handleSearch = async (usernameToSearch?: string) => {
+    const userToSearch = usernameToSearch || username;
+    if (!userToSearch.trim()) {
       toast({
         title: "Error",
         description: "Please enter a LeetCode username",
@@ -39,7 +62,7 @@ const Dashboard = () => {
     
     try {
       const { data, error } = await supabase.functions.invoke('fetch-leetcode-data', {
-        body: { username: username.trim() }
+        body: { username: userToSearch.trim() }
       });
 
       if (error) throw error;
@@ -54,7 +77,7 @@ const Dashboard = () => {
       }
 
       setUserStats(data);
-      setSearchedUser(username.trim());
+      setSearchedUser(userToSearch.trim());
       
       toast({
         title: "Success!",
@@ -95,7 +118,7 @@ const Dashboard = () => {
             <CyberButton 
               variant="cyber" 
               size="lg" 
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               disabled={isLoading}
             >
               {isLoading ? (
@@ -116,23 +139,17 @@ const Dashboard = () => {
         {searchedUser && userStats && (
           <>
             {/* Profile Header */}
-            <div className="glass-card p-6 mb-8 neon-border animate-slide-up">
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-full bg-gradient-cyber flex items-center justify-center text-3xl font-orbitron font-bold animate-glow-pulse">
-                  {searchedUser.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h2 className="text-2xl font-orbitron font-bold">{userStats.username}</h2>
-                  {userStats.realName && (
-                    <p className="text-muted-foreground">{userStats.realName}</p>
-                  )}
-                  <p className="text-muted-foreground">Rank: #{userStats.ranking.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
+            <ProfileHeader
+              username={userStats.username}
+              realName={userStats.realName}
+              ranking={userStats.ranking}
+              avatar={userStats.avatar}
+              reputation={userStats.reputation}
+              starRating={userStats.starRating}
+            />
 
             {/* Stats Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 my-8">
               <StatsCard
                 title="Total Solved"
                 value={userStats.totalSolved}
@@ -159,13 +176,27 @@ const Dashboard = () => {
               />
             </div>
 
-            {/* Charts and Recommendations */}
-            <div className="grid lg:grid-cols-2 gap-8">
+            {/* Activity and Contest */}
+            <div className="grid lg:grid-cols-2 gap-8 mb-8">
+              {userStats.calendar && <ActivityCalendar calendar={userStats.calendar} />}
+              <ContestRating contest={userStats.contestRanking} />
+            </div>
+
+            {/* Charts and Skills */}
+            <div className="grid lg:grid-cols-2 gap-8 mb-8">
               <DifficultyChart
                 easy={userStats.easySolved}
                 medium={userStats.mediumSolved}
                 hard={userStats.hardSolved}
               />
+              {userStats.skills && <SkillsRadar skills={userStats.skills} />}
+            </div>
+
+            {/* Recent Submissions and Recommendations */}
+            <div className="grid lg:grid-cols-2 gap-8">
+              {userStats.recentSubmissions && (
+                <RecentSubmissions submissions={userStats.recentSubmissions} />
+              )}
               <RecommendationsCard userStats={userStats} />
             </div>
           </>

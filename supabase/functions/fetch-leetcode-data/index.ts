@@ -12,6 +12,9 @@ interface LeetCodeResponse {
       profile: {
         ranking: number;
         realName: string;
+        userAvatar?: string;
+        reputation?: number;
+        starRating?: number;
       };
       submitStats: {
         acSubmissionNum: Array<{
@@ -19,6 +22,28 @@ interface LeetCodeResponse {
           count: number;
         }>;
       };
+      userCalendar?: {
+        streak: number;
+        totalActiveDays: number;
+        submissionCalendar: string;
+      };
+      userContestRanking?: {
+        rating: number;
+        globalRanking: number;
+        topPercentage: number;
+        attendedContestsCount: number;
+      };
+      tagProblemCounts?: {
+        advanced: Array<{ tagName: string; problemsSolved: number }>;
+        intermediate: Array<{ tagName: string; problemsSolved: number }>;
+        fundamental: Array<{ tagName: string; problemsSolved: number }>;
+      };
+      recentSubmissionList?: Array<{
+        title: string;
+        timestamp: string;
+        statusDisplay: string;
+        lang: string;
+      }>;
     };
   };
 }
@@ -45,12 +70,47 @@ serve(async (req) => {
           profile {
             ranking
             realName
+            userAvatar
+            reputation
+            starRating
           }
           submitStats {
             acSubmissionNum {
               difficulty
               count
+              submissions
             }
+          }
+          userCalendar {
+            streak
+            totalActiveDays
+            submissionCalendar
+          }
+          userContestRanking(username: $username) {
+            rating
+            globalRanking
+            topPercentage
+            attendedContestsCount
+          }
+          tagProblemCounts {
+            advanced {
+              tagName
+              problemsSolved
+            }
+            intermediate {
+              tagName
+              problemsSolved
+            }
+            fundamental {
+              tagName
+              problemsSolved
+            }
+          }
+          recentSubmissionList {
+            title
+            timestamp
+            statusDisplay
+            lang
           }
         }
       }
@@ -98,10 +158,17 @@ serve(async (req) => {
       username: userData.username,
       realName: userData.profile.realName,
       ranking: userData.profile.ranking,
+      avatar: userData.profile.userAvatar,
+      reputation: userData.profile.reputation,
+      starRating: userData.profile.starRating,
       totalSolved,
       easySolved,
       mediumSolved,
       hardSolved,
+      calendar: userData.userCalendar,
+      contestRanking: userData.userContestRanking,
+      skills: userData.tagProblemCounts,
+      recentSubmissions: userData.recentSubmissionList?.slice(0, 10) || [],
     };
 
     console.log(`Successfully fetched data for ${username}:`, result);
