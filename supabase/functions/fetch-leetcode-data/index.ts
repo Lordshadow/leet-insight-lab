@@ -14,7 +14,6 @@ interface LeetCodeResponse {
         realName: string;
         userAvatar?: string;
         reputation?: number;
-        starRating?: number;
       };
       submitStats: {
         acSubmissionNum: Array<{
@@ -22,28 +21,6 @@ interface LeetCodeResponse {
           count: number;
         }>;
       };
-      userCalendar?: {
-        streak: number;
-        totalActiveDays: number;
-        submissionCalendar: string;
-      };
-      userContestRanking?: {
-        rating: number;
-        globalRanking: number;
-        topPercentage: number;
-        attendedContestsCount: number;
-      };
-      tagProblemCounts?: {
-        advanced: Array<{ tagName: string; problemsSolved: number }>;
-        intermediate: Array<{ tagName: string; problemsSolved: number }>;
-        fundamental: Array<{ tagName: string; problemsSolved: number }>;
-      };
-      recentSubmissionList?: Array<{
-        title: string;
-        timestamp: string;
-        statusDisplay: string;
-        lang: string;
-      }>;
     };
   };
 }
@@ -62,9 +39,9 @@ serve(async (req) => {
 
     console.log(`Fetching LeetCode data for user: ${username}`);
 
-    // LeetCode GraphQL API query
-    const query = `
-      query getUserProfile($username: String!) {
+    // Fetch basic profile and stats
+    const profileQuery = `
+      query userPublicProfile($username: String!) {
         matchedUser(username: $username) {
           username
           profile {
@@ -72,7 +49,6 @@ serve(async (req) => {
             realName
             userAvatar
             reputation
-            starRating
           }
           submitStats {
             acSubmissionNum {
@@ -81,17 +57,106 @@ serve(async (req) => {
               submissions
             }
           }
+        }
+      }
+    `;
+
+    const profileResponse = await fetch('https://leetcode.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Referer': 'https://leetcode.com',
+      },
+      body: JSON.stringify({
+        query: profileQuery,
+        variables: { username },
+        operationName: 'userPublicProfile'
+      }),
+    });
+
+    if (!profileResponse.ok) {
+      throw new Error(`LeetCode API error: ${profileResponse.status}`);
+    }
+
+    const profileData: LeetCodeResponse = await profileResponse.json();
+    
+    if (!profileData.data?.matchedUser) {
+      return new Response(
+        JSON.stringify({ error: 'User not found' }), 
+        { 
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Fetch calendar data separately
+    const calendarQuery = `
+      query userProfileCalendar($username: String!) {
+        matchedUser(username: $username) {
           userCalendar {
             streak
             totalActiveDays
             submissionCalendar
           }
-          userContestRanking(username: $username) {
-            rating
-            globalRanking
-            topPercentage
-            attendedContestsCount
-          }
+        }
+      }
+    `;
+
+    const calendarResponse = await fetch('https://leetcode.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Referer': 'https://leetcode.com',
+      },
+      body: JSON.stringify({
+        query: calendarQuery,
+        variables: { username },
+        operationName: 'userProfileCalendar'
+      }),
+    });
+
+    let calendarData = null;
+    if (calendarResponse.ok) {
+      const calRes = await calendarResponse.json();
+      calendarData = calRes.data?.matchedUser?.userCalendar;
+    }
+
+    // Fetch contest ranking separately
+    const contestQuery = `
+      query userContestRankingInfo($username: String!) {
+        userContestRanking(username: $username) {
+          rating
+          globalRanking
+          topPercentage
+          attendedContestsCount
+        }
+      }
+    `;
+
+    const contestResponse = await fetch('https://leetcode.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Referer': 'https://leetcode.com',
+      },
+      body: JSON.stringify({
+        query: contestQuery,
+        variables: { username },
+        operationName: 'userContestRankingInfo'
+      }),
+    });
+
+    let contestData = null;
+    if (contestResponse.ok) {
+      const contRes = await contestResponse.json();
+      contestData = contRes.data?.userContestRanking;
+    }
+
+    // Fetch skills separately
+    const skillsQuery = `
+      query skillStats($username: String!) {
+        matchedUser(username: $username) {
           tagProblemCounts {
             advanced {
               tagName
@@ -106,46 +171,61 @@ serve(async (req) => {
               problemsSolved
             }
           }
-          recentSubmissionList {
-            title
-            timestamp
-            statusDisplay
-            lang
-          }
         }
       }
     `;
 
-    // Fetch data from LeetCode's public GraphQL API
-    const response = await fetch('https://leetcode.com/graphql', {
+    const skillsResponse = await fetch('https://leetcode.com/graphql', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Referer': 'https://leetcode.com',
       },
       body: JSON.stringify({
-        query,
+        query: skillsQuery,
         variables: { username },
+        operationName: 'skillStats'
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`LeetCode API error: ${response.status}`);
+    let skillsData = null;
+    if (skillsResponse.ok) {
+      const skillRes = await skillsResponse.json();
+      skillsData = skillRes.data?.matchedUser?.tagProblemCounts;
     }
 
-    const data: LeetCodeResponse = await response.json();
-    
-    if (!data.data?.matchedUser) {
-      return new Response(
-        JSON.stringify({ error: 'User not found' }), 
-        { 
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    // Fetch recent submissions separately
+    const submissionsQuery = `
+      query recentAcSubmissions($username: String!, $limit: Int!) {
+        recentAcSubmissionList(username: $username, limit: $limit) {
+          id
+          title
+          titleSlug
+          timestamp
         }
-      );
+      }
+    `;
+
+    const submissionsResponse = await fetch('https://leetcode.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Referer': 'https://leetcode.com',
+      },
+      body: JSON.stringify({
+        query: submissionsQuery,
+        variables: { username, limit: 10 },
+        operationName: 'recentAcSubmissions'
+      }),
+    });
+
+    let recentSubmissions = [];
+    if (submissionsResponse.ok) {
+      const subRes = await submissionsResponse.json();
+      recentSubmissions = subRes.data?.recentAcSubmissionList || [];
     }
 
-    const userData = data.data.matchedUser;
+    const userData = profileData.data.matchedUser;
     const stats = userData.submitStats.acSubmissionNum;
 
     // Parse the submission stats
@@ -160,15 +240,19 @@ serve(async (req) => {
       ranking: userData.profile.ranking,
       avatar: userData.profile.userAvatar,
       reputation: userData.profile.reputation,
-      starRating: userData.profile.starRating,
       totalSolved,
       easySolved,
       mediumSolved,
       hardSolved,
-      calendar: userData.userCalendar,
-      contestRanking: userData.userContestRanking,
-      skills: userData.tagProblemCounts,
-      recentSubmissions: userData.recentSubmissionList?.slice(0, 10) || [],
+      calendar: calendarData,
+      contestRanking: contestData,
+      skills: skillsData,
+      recentSubmissions: recentSubmissions.map((sub: any) => ({
+        title: sub.title,
+        timestamp: sub.timestamp,
+        statusDisplay: 'Accepted',
+        lang: 'N/A'
+      })),
     };
 
     console.log(`Successfully fetched data for ${username}:`, result);
