@@ -28,43 +28,73 @@ const ActivityCalendar = ({ calendar }: ActivityCalendarProps) => {
   const oneYearAgo = today - (365 * 24 * 60 * 60);
   const recentDates = dates.filter(timestamp => parseInt(timestamp) >= oneYearAgo);
 
-  // Organize dates into weeks (7 days per week, starting from Sunday)
-  const getWeekData = () => {
-    const weeks: { [key: string]: number }[][] = [];
+  // Organize dates into months and weeks
+  const getCalendarData = () => {
+    const months: { 
+      name: string; 
+      year: number;
+      weeks: { [key: string]: number }[][] 
+    }[] = [];
+    
+    if (recentDates.length === 0) return months;
+
+    let currentMonth = -1;
+    let currentYear = -1;
     let currentWeek: { [key: string]: number }[] = [];
-    
-    // Get the day of week for the first date (0 = Sunday, 6 = Saturday)
-    const firstDate = recentDates.length > 0 ? new Date(parseInt(recentDates[0]) * 1000) : new Date();
-    const firstDayOfWeek = firstDate.getDay();
-    
-    // Fill empty cells at the start
-    for (let i = 0; i < firstDayOfWeek; i++) {
-      currentWeek.push({});
-    }
-    
-    // Fill in the actual dates
-    recentDates.forEach((timestamp) => {
+    let weekStarted = false;
+
+    recentDates.forEach((timestamp, idx) => {
+      const date = new Date(parseInt(timestamp) * 1000);
+      const month = date.getMonth();
+      const year = date.getFullYear();
+      const dayOfWeek = date.getDay();
       const count = submissions[timestamp] || 0;
+
+      // Start new month
+      if (month !== currentMonth || year !== currentYear) {
+        // Save previous month's last week
+        if (weekStarted && currentWeek.length > 0) {
+          while (currentWeek.length < 7) {
+            currentWeek.push({});
+          }
+          months[months.length - 1].weeks.push(currentWeek);
+        }
+
+        currentMonth = month;
+        currentYear = year;
+        const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+        months.push({ name: monthName, year, weeks: [] });
+        currentWeek = [];
+        weekStarted = false;
+
+        // Add empty cells for alignment at start of month
+        for (let i = 0; i < dayOfWeek; i++) {
+          currentWeek.push({});
+        }
+      }
+
       currentWeek.push({ [timestamp]: count });
-      
+      weekStarted = true;
+
+      // Complete week (Sunday to Saturday)
       if (currentWeek.length === 7) {
-        weeks.push(currentWeek);
+        months[months.length - 1].weeks.push(currentWeek);
         currentWeek = [];
       }
     });
-    
-    // Fill remaining cells in the last week
-    while (currentWeek.length > 0 && currentWeek.length < 7) {
-      currentWeek.push({});
-    }
+
+    // Add remaining days
     if (currentWeek.length > 0) {
-      weeks.push(currentWeek);
+      while (currentWeek.length < 7) {
+        currentWeek.push({});
+      }
+      months[months.length - 1].weeks.push(currentWeek);
     }
-    
-    return weeks;
+
+    return months;
   };
 
-  const weeks = getWeekData();
+  const calendarData = getCalendarData();
 
   const getIntensity = (count: number) => {
     if (count === 0) return "bg-background/30 border-primary/10";
@@ -112,30 +142,39 @@ const ActivityCalendar = ({ calendar }: ActivityCalendarProps) => {
       </div>
 
       <div className="overflow-x-auto custom-scrollbar pb-2">
-        <div className="flex gap-1 min-w-max">
-          {weeks.map((week, weekIdx) => (
-            <div key={weekIdx} className="flex flex-col gap-1">
-              {week.map((day, dayIdx) => {
-                const timestamp = Object.keys(day)[0];
-                const count = timestamp ? day[timestamp] : 0;
-                const isEmpty = !timestamp;
-                
-                return (
-                  <div
-                    key={`${weekIdx}-${dayIdx}`}
-                    className={`w-3 h-3 rounded-sm border transition-all ${
-                      isEmpty 
-                        ? "bg-transparent border-transparent" 
-                        : `hover:scale-150 cursor-pointer ${getIntensity(count)}`
-                    }`}
-                    title={
-                      timestamp
-                        ? `${new Date(parseInt(timestamp) * 1000).toLocaleDateString()}: ${count} submissions`
-                        : ""
-                    }
-                  />
-                );
-              })}
+        <div className="flex gap-6 min-w-max">
+          {calendarData.map((monthData, monthIdx) => (
+            <div key={monthIdx} className="flex flex-col">
+              <div className="mb-2 text-xs font-medium text-muted-foreground">
+                {monthData.name} {monthData.year}
+              </div>
+              <div className="flex gap-1">
+                {monthData.weeks.map((week, weekIdx) => (
+                  <div key={weekIdx} className="flex flex-col gap-1">
+                    {week.map((day, dayIdx) => {
+                      const timestamp = Object.keys(day)[0];
+                      const count = timestamp ? day[timestamp] : 0;
+                      const isEmpty = !timestamp;
+                      
+                      return (
+                        <div
+                          key={`${monthIdx}-${weekIdx}-${dayIdx}`}
+                          className={`w-3 h-3 rounded-sm border transition-all ${
+                            isEmpty 
+                              ? "bg-transparent border-transparent" 
+                              : `hover:scale-150 cursor-pointer ${getIntensity(count)}`
+                          }`}
+                          title={
+                            timestamp
+                              ? `${new Date(parseInt(timestamp) * 1000).toLocaleDateString()}: ${count} submissions`
+                              : ""
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
