@@ -39,9 +39,19 @@ const DifficultyChart = ({ easy, medium, hard }: DifficultyChartProps) => {
           </Pie>
           <Tooltip 
             contentStyle={{
-              backgroundColor: "hsl(220 35% 10%)",
-              border: "1px solid hsl(190 60% 30%)",
+              backgroundColor: "hsl(220 40% 20%)",
+              border: "2px solid hsl(190 60% 50%)",
               borderRadius: "8px",
+              color: "hsl(0 0% 98%)",
+              padding: "8px 12px",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
+            }}
+            itemStyle={{
+              color: "hsl(0 0% 98%)",
+            }}
+            labelStyle={{
+              color: "hsl(0 0% 98%)",
+              fontWeight: "bold",
             }}
           />
           <Legend 
